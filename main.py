@@ -50,8 +50,7 @@ def build_main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def html_to_telegram_text(html: str) -> str:
-    text = re.sub(r"<br\s*/?>
-?", "\n", html)
+    text = re.sub(r"<br\s/?>", "\n", html)
     text = re.sub(r"</p>", "\n\n", text)
     text = re.sub(r"<p[^>]*>", "", text)
     text = re.sub(r"<[^>]+>", "", text)
