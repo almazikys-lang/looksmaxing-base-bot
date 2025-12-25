@@ -4,22 +4,23 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import CommandStart
 from aiogram.fsm.storage.memory import MemoryStorage
-from dotenv import load_dotenv
 
-load_dotenv()
-
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
-    print("[ERROR] BOT_TOKEN not set!")
+    logger.error("BOT_TOKEN environment variable is not set")
     sys.exit(1)
 
+logger.info(f"Bot token length: {len(BOT_TOKEN)}")
+
 try:
-    with open('sections.json') as f:
+    with open('sections.json', 'r', encoding='utf-8') as f:
         SECTIONS = {s['id']: s for s in json.load(f)}
-except:
+    logger.info(f"Loaded {len(SECTIONS)} sections")
+except Exception as e:
+    logger.error(f"Error loading sections.json: {e}")
     SECTIONS = {}
 
 bot = Bot(token=BOT_TOKEN)
@@ -41,14 +42,14 @@ def menu():
 
 @dp.message(CommandStart())
 async def start(message: types.Message):
-    text = "🎯 **Looksmaxing Base Bot v2.0**\n\n"
-    text += "Выбери раздел для изучения:\n"
+    text = "🎯 **Looksmaxing Base Bot v2.0**\n\nВыбери раздел для изучения:\n"
     await message.answer(text, parse_mode="Markdown", reply_markup=menu())
     logger.info(f"User {message.from_user.id} started bot")
 
 @dp.callback_query(F.data.startswith('s_'))
 async def section(callback: types.CallbackQuery):
     section_id = callback.data[2:]
+    logger.info(f"User {callback.from_user.id} clicked section: {section_id}")
     
     if section_id not in SECTIONS:
         await callback.answer("❌ Раздел не найден", show_alert=True)
@@ -70,33 +71,35 @@ async def section(callback: types.CallbackQuery):
     if content:
         chunks.append(content)
     
-    await callback.message.edit_text(f"📖 **{section_data.get('name', section_id)}**\n\n{chunks[0] if chunks else 'Нет содержимого'}")
+    for i, chunk in enumerate(chunks):
+        if i == 0:
+            await callback.message.edit_text(f"📖 **{section_data.get('name', section_id)}**\n\n{chunk}")
+        else:
+            await asyncio.sleep(0.5)
+            await callback.message.answer(chunk)
     
-    for i, chunk in enumerate(chunks[1:], 1):
-        await asyncio.sleep(0.5)
-        await callback.message.answer(chunk, parse_mode="Markdown")
-    
-    back_button = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="back")]])
-    await callback.message.answer("\n", reply_markup=back_button)
+    back_btn = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]])
+    await callback.message.answer("\n", reply_markup=back_btn)
     await callback.answer()
-    logger.info(f"User {callback.from_user.id} viewed section: {section_id}")
 
 @dp.callback_query(F.data == "back")
 async def back(callback: types.CallbackQuery):
-    text = "🎯 **Looksmaxing Base Bot v2.0**\n\nВыбери раздел для изучения:"
+    text = "🎯 **Looksmaxing Base Bot v2.0**\n\nВыбери раздел:"
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=menu())
     await callback.answer()
 
 @dp.message()
 async def echo(message: types.Message):
-    await message.answer("ℹ️ Используй /start для начала", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📖 Меню", callback_data="back")]]))
+    await message.answer("ℹ️ Используй /start", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Menu", callback_data="back")]]))
 
 async def main():
-    logger.info("🤖 Бот запущен в режиме polling...")
-    try:
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
-    finally:
-        await bot.session.close()
+    logger.info("🤖 Начинаю polling...")
+    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}", exc_info=True)
