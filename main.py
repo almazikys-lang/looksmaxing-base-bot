@@ -9,6 +9,7 @@ from aiohttp import web
 from dotenv import load_dotenv
 
 load_dotenv()
+
 BOT_TOKEN = os.getenv("BOT_TOKEN","")
 if not BOT_TOKEN:
     print("[ERROR] BOT_TOKEN not set!")
@@ -24,6 +25,7 @@ bot=Bot(token=BOT_TOKEN)
 dp=Dispatcher(storage=MemoryStorage())
 
 def txt(h):return re.sub('<[^<]+?>','',h).strip()
+
 def menu():
     return IKM(inline_keyboard=[[IKB(text=f,callback_data=f"s_{d}")] for d,f in [('atlas','🏛️ ATLAS'),('figure','📐 V-Figure'),('health','❤️ Health'),('bonesmashing','💀 Bonesmashing'),('mew','👄 Mewing'),('training','💪 Training'),('close','❌ Close')]])
 
@@ -74,13 +76,10 @@ async def on_shutdown(application):
 
 def main():
     app=web.Application()
-    
     wh_requests_handler=SimpleRequestHandler(dispatcher=dp,bot=bot)
     wh_requests_handler.register(app,path="/webhook")
     setup_application(app,dp,bot=bot,on_startup=on_startup,on_shutdown=on_shutdown)
-    
     app.router.add_get('/',lambda r:web.Response(text='Bot OK'))
-    
     web.run_app(app,host='0.0.0.0',port=int(os.getenv('PORT','10000')))
 
 if __name__=='__main__':
