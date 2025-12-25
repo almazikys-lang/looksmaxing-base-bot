@@ -1,86 +1,102 @@
 #!/usr/bin/env python3
-import os,sys,json,asyncio,re
-from aiogram import Bot,Dispatcher,types,F
-from aiogram.types import InlineKeyboardButton as IKB,InlineKeyboardMarkup as IKM
+import os, sys, json, asyncio, re, logging
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import CommandStart
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler,setup_application
-from aiohttp import web
 from dotenv import load_dotenv
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN","")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 if not BOT_TOKEN:
     print("[ERROR] BOT_TOKEN not set!")
     sys.exit(1)
 
 try:
     with open('sections.json') as f:
-        SECTIONS={s['id']:s for s in json.load(f)}
+        SECTIONS = {s['id']: s for s in json.load(f)}
 except:
-    SECTIONS={}
+    SECTIONS = {}
 
-bot=Bot(token=BOT_TOKEN)
-dp=Dispatcher(storage=MemoryStorage())
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
 
-def txt(h):return re.sub('<[^<]+?>','',h).strip()
+def txt(h):
+    return re.sub(r'<[^<]+?>', '', h).strip()
 
 def menu():
-    return IKM(inline_keyboard=[[IKB(text=f,callback_data=f"s_{d}")] for d,f in [('atlas','🏛️ ATLAS'),('figure','📐 V-Figure'),('health','❤️ Health'),('bonesmashing','💀 Bonesmashing'),('mew','👄 Mewing'),('training','💪 Training'),('close','❌ Close')]])
+    buttons = [
+        [InlineKeyboardButton(text="🏛️ ATLAS", callback_data="s_atlas")],
+        [InlineKeyboardButton(text="📐 V-Figure", callback_data="s_figure")],
+        [InlineKeyboardButton(text="❤️ Health", callback_data="s_health")],
+        [InlineKeyboardButton(text="💀 Bonesmashing", callback_data="s_bonesmashing")],
+        [InlineKeyboardButton(text="👄 Mewing", callback_data="s_mew")],
+        [InlineKeyboardButton(text="💪 Training", callback_data="s_training")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 @dp.message(CommandStart())
-async def start(m:types.Message):
-    await m.answer("🎯 **Looksmaxing Base Bot**\n\nSelect:",parse_mode="Markdown",reply_markup=menu())
+async def start(message: types.Message):
+    text = "🎯 **Looksmaxing Base Bot v2.0**\n\n"
+    text += "Выбери раздел для изучения:\n"
+    await message.answer(text, parse_mode="Markdown", reply_markup=menu())
+    logger.info(f"User {message.from_user.id} started bot")
 
 @dp.callback_query(F.data.startswith('s_'))
-async def section(c:types.CallbackQuery):
-    sid=c.data[2:]
-    if sid=='close':
-        await c.message.delete()
-        return await c.answer()
-    if sid not in SECTIONS:
-        return await c.answer("Not found",show_alert=True)
-    s=SECTIONS[sid]
-    t=txt(s.get('html',''))
-    if not t:t=f"Content coming soon..."
-    chunks=[]
-    while len(t)>3500:
-        p=t.rfind('\n',0,3500)
-        if p==-1:p=3500
-        chunks.append(t[:p])
-        t=t[p:].lstrip()
-    if t:chunks.append(t)
-    for i,ch in enumerate(chunks):
-        kb=IKM(inline_keyboard=[[IKB(text="⬅️ Back",callback_data="back")]]) if i==len(chunks)-1 else None
-        await c.message.answer(ch,parse_mode="Markdown",reply_markup=kb)
-        await asyncio.sleep(0.1)
-    await c.answer()
+async def section(callback: types.CallbackQuery):
+    section_id = callback.data[2:]
+    
+    if section_id not in SECTIONS:
+        await callback.answer("❌ Раздел не найден", show_alert=True)
+        return
+    
+    section_data = SECTIONS[section_id]
+    content = txt(section_data.get('html', ''))
+    
+    if not content:
+        content = "📝 Контент скоро будет доступен..."
+    
+    chunks = []
+    while len(content) > 3500:
+        p = content.rfind('\n', 0, 3500)
+        if p == -1:
+            p = 3500
+        chunks.append(content[:p])
+        content = content[p:].lstrip()
+    if content:
+        chunks.append(content)
+    
+    await callback.message.edit_text(f"📖 **{section_data.get('name', section_id)}**\n\n{chunks[0] if chunks else 'Нет содержимого'}")
+    
+    for i, chunk in enumerate(chunks[1:], 1):
+        await asyncio.sleep(0.5)
+        await callback.message.answer(chunk, parse_mode="Markdown")
+    
+    back_button = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="back")]])
+    await callback.message.answer("\n", reply_markup=back_button)
+    await callback.answer()
+    logger.info(f"User {callback.from_user.id} viewed section: {section_id}")
 
-@dp.callback_query(F.data=="back")
-async def back(c:types.CallbackQuery):
-    await c.message.answer("🎯 Menu:",parse_mode="Markdown",reply_markup=menu())
-    await c.answer()
+@dp.callback_query(F.data == "back")
+async def back(callback: types.CallbackQuery):
+    text = "🎯 **Looksmaxing Base Bot v2.0**\n\nВыбери раздел для изучения:"
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=menu())
+    await callback.answer()
 
 @dp.message()
-async def echo(m:types.Message):
-    await m.answer("Use /start",reply_markup=IKM(inline_keyboard=[[IKB(text="Menu",callback_data="back")]]))
+async def echo(message: types.Message):
+    await message.answer("ℹ️ Используй /start для начала", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📖 Меню", callback_data="back")]]))
 
-async def on_startup(application):
-    webhook_url=os.getenv('WEBHOOK_URL',f'https://looksmaxing-base-bot.onrender.com')
-    await bot.set_webhook(url=webhook_url+'/webhook')
-    print(f"[BOT] Webhook set to {webhook_url}/webhook")
+async def main():
+    logger.info("🤖 Бот запущен в режиме polling...")
+    try:
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    finally:
+        await bot.session.close()
 
-async def on_shutdown(application):
-    await bot.session.close()
-
-def main():
-    app=web.Application()
-    wh_requests_handler=SimpleRequestHandler(dispatcher=dp,bot=bot)
-    wh_requests_handler.register(app,path="/webhook")
-    setup_application(app,dp,bot=bot,on_startup=on_startup,on_shutdown=on_shutdown)
-    app.router.add_get('/',lambda r:web.Response(text='Bot OK'))
-    web.run_app(app,host='0.0.0.0',port=int(os.getenv('PORT','10000')))
-
-if __name__=='__main__':
-    main()
+if __name__ == "__main__":
+    asyncio.run(main())
