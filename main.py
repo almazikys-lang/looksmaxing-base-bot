@@ -3,15 +3,13 @@ import os
 import sys
 import json
 import logging
+import asyncio
 from typing import Dict, List
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import CommandStart
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
-import asyncio
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -34,7 +32,6 @@ if BOT_TOKEN == "NOT_SET":
 print(f"[BOOT] BOT_TOKEN loaded successfully")
 
 # Load sections from JSON
-TRY_SECTIONS = {}
 try:
     with open('sections.json', 'r', encoding='utf-8') as f:
         SECTIONS_DATA = json.load(f)
@@ -60,10 +57,9 @@ def extract_text_from_html(html: str) -> str:
     return text.strip()
 
 def chunk_text(text: str, max_length: int = 3500) -> List[str]:
-    """Split text into chunks for Telegram (max 4096 chars per message)"""
+    """Split text into chunks for Telegram"""
     chunks = []
     while len(text) > max_length:
-        # Find last newline before max_length
         split_pos = text.rfind('\n', 0, max_length)
         if split_pos == -1:
             split_pos = max_length
@@ -127,10 +123,8 @@ async def handle_section(callback: types.CallbackQuery):
     
     logger.info(f"[REQUEST] User {callback.from_user.id} requested section: {section_id} ({len(chunks)} chunks)")
     
-    # Send all chunks
     for i, chunk in enumerate(chunks):
         if i == len(chunks) - 1:
-            # Last chunk - add back button
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="⬅️ Back to Menu", callback_data="back_menu")]
             ])
@@ -140,9 +134,8 @@ async def handle_section(callback: types.CallbackQuery):
                 reply_markup=keyboard
             )
         else:
-            # Intermediate chunks
             await callback.message.answer(chunk, parse_mode="Markdown")
-        await asyncio.sleep(0.1)  # Small delay between messages
+        await asyncio.sleep(0.1)
     
     await callback.answer()
 
@@ -178,20 +171,31 @@ async def handle_unknown(message: types.Message):
         ])
     )
 
-async def on_startup(app):
-    """Startup handler"""
-    logger.info("[BOT] Starting Telegram bot polling...")
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
-
-async def web_handler(request):
-    """Simple web handler for Render health checks"""
+# HTTP health check handler
+async def health_check(request):
+    """Simple health check endpoint for Render"""
     return web.Response(text="Looksmaxing Base Bot is running!")
 
+async def start_http_server():
+    """Start HTTP server for Render health checks"""
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 10000)
+    await site.start()
+    logger.info("[HTTP] Web server started on port 10000")
+    return runner
+
 async def main():
-    """Main bot function"""
+    """Main function - run bot and HTTP server"""
     logger.info(f"[BOT] Starting bot with token: {BOT_TOKEN[:10]}...")
     
     try:
+        # Start HTTP server
+        http_runner = await start_http_server()
+        
         # Set bot commands
         commands = [
             types.BotCommand(command="start", description="Start the bot"),
@@ -199,8 +203,9 @@ async def main():
         ]
         await bot.set_my_commands(commands)
         
-        # Start polling
         logger.info("[BOT] Bot started successfully! Waiting for messages...")
+        
+        # Start polling
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     except Exception as e:
         logger.error(f"[ERROR] {e}")
