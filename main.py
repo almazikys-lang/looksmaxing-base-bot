@@ -1,92 +1,38 @@
-import asyncio
+#!/usr/bin/env python3
 import os
-import logging
-from aiogram import Bot, Dispatcher
-from aiogram.types import Message
-from aiogram.filters import Command
-from dotenv import load_dotenv
+import sys
+import time
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
-load_dotenv()
+print("[BOOT] Python version:", sys.version)
+print("[BOOT] Loading BOT_TOKEN from environment...")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "NOT_SET")
+print(f"[BOOT] BOT_TOKEN set: {'YES' if BOT_TOKEN != 'NOT_SET' else 'NO'}")
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-if not BOT_TOKEN or BOT_TOKEN == "":
-    logger.warning("⚠️ BOT_TOKEN is empty or not set!")
-    BOT_TOKEN = "0:0"
-    logger.info("⚠️ Using dummy token for startup testing")
-else:
-    logger.info(f"✅ BOT_TOKEN loaded successfully (length={len(BOT_TOKEN)})")
-
-try:
-    bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher()
-    logger.info("✅ Bot object created successfully")
-except Exception as e:
-    logger.error(f"❌ Failed to create bot: {e}")
-    raise
-
-@dp.message(Command("start"))
-async def start_handler(message: Message):
-    logger.info(f"📨 /start command from user {message.from_user.id}")
-    try:
-        await message.answer("🎯 Добро пожаловать в Looksmaxing Base Bot!")
-        logger.info("✅ Message sent successfully")
-    except Exception as e:
-        logger.error(f"❌ Error sending message: {e}")
-
-@dp.message(Command("help"))
-async def help_handler(message: Message):
-    help_text = "/start - Start\n/help - Help\n/menu - Menu"
-    await message.answer(help_text)
-
-@dp.message()
-async def echo_handler(message: Message):
-    logger.info(f"📨 Message from {message.from_user.id}: {message.text}")
-    try:
-        await message.answer(f"Вы написали: {message.text}")
-    except Exception as e:
-        logger.error(f"❌ Error: {e}")
-
-async def main():
-    logger.info("")
-    logger.info("="*60)
-    logger.info("🤖 LOOKSMAXING BASE BOT STARTING")
-    logger.info("="*60)
-    logger.info("")
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b"Looksmaxing Base Bot is running!\n")
+        print(f"[REQUEST] GET {self.path}")
     
-    try:
-        if BOT_TOKEN == "0:0":
-            logger.warning("⚠️  Using dummy token - bot is in test mode")
-            logger.info("⚠️  Waiting for messages... (bot will not respond in test mode)")
-            # Just keep the bot running in test mode
-            while True:
-                await asyncio.sleep(60)
-                logger.info("🔄 Bot still running (test mode)...")
-        else:
-            logger.info("🚀 Starting polling with real Telegram...")
-            await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
-    except Exception as e:
-        logger.error(f"❌ Fatal error in bot: {type(e).__name__}: {e}")
-        logger.exception("Full traceback:")
-        raise
-    finally:
-        logger.info("🛑 Shutting down...")
-        if BOT_TOKEN != "0:0":
-            await bot.session.close()
-        logger.info("👋 Bot stopped")
+    def log_message(self, format, *args):
+        # Silent logger
+        pass
 
 if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
+    print(f"[BOOT] Starting HTTP server on port {port}...")
+    
+    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
+    print(f"[BOOT] Server ready! Waiting for requests...")
+    
     try:
-        asyncio.run(main())
+        server.serve_forever()
     except KeyboardInterrupt:
-        logger.info("⏹️  Bot interrupted by user")
+        print("\n[SHUTDOWN] Server stopped")
     except Exception as e:
-        logger.critical(f"💥 CRITICAL ERROR: {e}")
-        logger.exception("Full traceback:")
-        raise
+        print(f"[ERROR] {e}")
+        sys.exit(1)
