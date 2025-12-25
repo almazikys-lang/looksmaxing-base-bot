@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-import os,sys,json,logging,asyncio
+import os,sys,json,asyncio,re
 from aiogram import Bot,Dispatcher,types,F
 from aiogram.types import InlineKeyboardButton as IKB,InlineKeyboardMarkup as IKM
 from aiogram.filters import CommandStart
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler,setup_application
 from aiohttp import web
 from dotenv import load_dotenv
-import re
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO,format='%(message)s')
-logger = logging.getLogger()
-
-BOT_TOKEN = os.getenv("BOT_TOKEN","NOT_SET")
-if BOT_TOKEN == "NOT_SET":
+BOT_TOKEN = os.getenv("BOT_TOKEN","")
+if not BOT_TOKEN:
     print("[ERROR] BOT_TOKEN not set!")
     sys.exit(1)
 
@@ -67,41 +64,30 @@ async def back(c:types.CallbackQuery):
 async def echo(m:types.Message):
     await m.answer("Use /start",reply_markup=IKM(inline_keyboard=[[IKB(text="Menu",callback_data="back")]]))
 
-async def handle_update(request):
-    data=await request.json()
-    update=types.Update(**data)
-    await dp.feed_update(bot,update)
-    return web.Response()
+async def on_startup(application):
+    webhook_url=os.getenv('WEBHOOK_URL',f'https://looksmaxing-base-bot.onrender.com')
+    await bot.set_webhook(url=webhook_url+'/webhook')
+    print(f"[BOT] Webhook set to {webhook_url}/webhook")
 
-async def health(r):return web.Response(text="Bot OK")
+async def on_shutdown(application):
+    await bot.session.close()
 
-async def main():
+def main():
     app=web.Application()
-    app.router.add_post('/webhook',handle_update)
-    app.router.add_get('/',health)
     
-    runner=web.AppRunner(app)
-    await runner.setup()
-    site=web.TCPSite(runner,'0.0.0.0',int(os.getenv('PORT','10000')))
-    await site.start()
+    wh_requests_handler=SimpleRequestHandler(dispatcher=dp,bot=bot)
+    wh_requests_handler.register(app,path="/webhook")
+    setup_application(app,dp,bot=bot,on_startup=on_startup,on_shutdown=on_shutdown)
     
-    try:
-        webhook_url=os.getenv('WEBHOOK_URL',f'https://looksmaxing-base-bot.onrender.com')
-await bot.set_webhook(url=webhook_url+'/webhook')
-        print(f"[BOT] Webhook set to {webhook_url}/webhook")
-        print(f"[BOT] Web server on port {os.getenv('PORT','10000')}")
-        while True:
-            await asyncio.sleep(60)
-    except Exception as e:
-        print(f"[ERROR] {e}")
-        await runner.cleanup()
-        sys.exit(1)
+    app.router.add_get('/',lambda r:web.Response(text='Bot OK'))
+    
+    web.run_app(app,host='0.0.0.0',port=int(os.getenv('PORT','10000')))
 
-if __name__=="__main__":
+if __name__=='__main__':
     try:
-        asyncio.run(main())
+        main()
     except KeyboardInterrupt:
-        print("[SHUTDOWN] Bot stopped")
+        print("[SHUTDOWN]")
     except Exception as e:
         print(f"[ERROR] {e}")
         sys.exit(1)
