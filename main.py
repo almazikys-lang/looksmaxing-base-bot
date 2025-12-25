@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 import os,asyncio,json,re
-from aiohttp import web
 from aiogram import Bot,Dispatcher,types,F
-from aiogram.types import InlineKeyboardButton,InlineKeyboardMarkup,Update
+from aiogram.types import InlineKeyboardButton,InlineKeyboardMarkup
 from aiogram.filters import CommandStart
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.webhook.aiohttp_server import setup_application
 
 token=os.environ.get("BOT_TOKEN")
 bot=Bot(token=token)
@@ -46,26 +44,8 @@ async def back(c:types.CallbackQuery):
 async def any_msg(m:types.Message):
     await m.answer("/start для меню")
 
-async def handle_webhook(request:web.Request)->web.Response:
-    try:
-        data = await request.json()
-        update = Update(**data)
-        await dp.feed_update(bot, update)
-    except Exception as e:
-        print(f"Error: {e}")
-    return web.Response(text="ok")
-
 async def main():
-    app = web.Application()
-    app.router.post('/webhook', handle_webhook)
-    app.router.get('/health', lambda r: web.Response(text='ok'))
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', int(os.environ.get('PORT', 8000)))
-    await site.start()
-    print(f"Webhook server started on port {os.environ.get('PORT', 8000)}")
-    await asyncio.Event().wait()
+    await dp.start_polling(bot)
 
 if __name__=="__main__":
     asyncio.run(main())
