@@ -87,7 +87,7 @@ async def main():
     
     try:
         webhook_url=os.getenv('WEBHOOK_URL',f'https://looksmaxing-base-bot.onrender.com')
-        await bot.set_webhook_info(webhook_url='/webhook')
+await bot.set_webhook(url=webhook_url+'/webhook')
         print(f"[BOT] Webhook set to {webhook_url}/webhook")
         print(f"[BOT] Web server on port {os.getenv('PORT','10000')}")
         while True:
