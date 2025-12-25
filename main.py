@@ -84,10 +84,4 @@ def main():
     web.run_app(app,host='0.0.0.0',port=int(os.getenv('PORT','10000')))
 
 if __name__=='__main__':
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("[SHUTDOWN]")
-    except Exception as e:
-        print(f"[ERROR] {e}")
-        sys.exit(1)
+    main()
