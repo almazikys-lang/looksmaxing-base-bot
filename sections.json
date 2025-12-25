@@ -1,0 +1,32 @@
+[
+  {
+    "id": "atlas",
+    "title": "ATLAS",
+    "html": "<h2>ATLAS - Facial Anatomy</h2><p>The ATLAS section contains detailed information about facial anatomy and how different bone structures affect facial appearance. Understanding facial anatomy is fundamental to looksmaxing.</p><p>Key topics include: facial bones, muscle structure, and proportions.</p>"
+  },
+  {
+    "id": "vfigure",
+    "title": "V-Figure",
+    "html": "<h2>V-Figure Body Shape</h2><p>The V-shaped body is characterized by wider shoulders and a narrower waist. This is achieved through proper training and diet.</p><p>Benefits of V-figure: increased attractiveness, better health, improved confidence.</p>"
+  },
+  {
+    "id": "health",
+    "title": "Health Guide",
+    "html": "<h2>Health and Longevity</h2><p>Proper health is the foundation of looksmaxing. Good nutrition, sleep, and exercise are essential.</p><p>Topics covered: nutrition, supplementation, sleep optimization.</p>"
+  },
+  {
+    "id": "bonesmash",
+    "title": "Bonesmashing",
+    "html": "<h2>Bonesmashing Technique</h2><p>Bonesmashing is a technique that applies targeted pressure to promote bone remodeling. Results take time and consistent effort.</p><p>Safety first: always research and use proper technique.</p>"
+  },
+  {
+    "id": "mew",
+    "title": "Mewing",
+    "html": "<h2>Mewing Posture</h2><p>Mewing is tongue posture optimization that can improve facial structure over time. Proper tongue position: on the palate, not on the floor of the mouth.</p><p>Results: improved jawline, better facial structure.</p>"
+  },
+  {
+    "id": "training",
+    "title": "Training Guide",
+    "html": "<h2>Physical Training</h2><p>Proper training is essential for developing the V-figure and overall attractiveness. Focus on compound movements and progressive overload.</p><p>Key exercises: bench press, squats, deadlifts, rows.</p>"
+  }
+]
