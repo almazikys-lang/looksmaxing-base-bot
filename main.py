@@ -4,7 +4,7 @@ import sys
 import json
 import logging
 import asyncio
-from typing import Dict, List
+from typing import List
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import CommandStart
@@ -12,127 +12,87 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(name)s: %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(name)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-print(f"[BOOT] Python version: {sys.version}")
-print(f"[BOOT] Loading BOT_TOKEN from environment...")
-
+print(f"[BOOT] Python {sys.version}")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "NOT_SET")
 if BOT_TOKEN == "NOT_SET":
     logger.error("[BOOT] BOT_TOKEN not set!")
     sys.exit(1)
-print(f"[BOOT] BOT_TOKEN loaded successfully")
+print(f"[BOOT] BOT_TOKEN loaded")
 
-# Load sections from JSON
+# Load sections
 try:
     with open('sections.json', 'r', encoding='utf-8') as f:
-        SECTIONS_DATA = json.load(f)
-        SECTIONS = {section['id']: section for section in SECTIONS_DATA}
-        logger.info(f"[BOOT] Loaded {len(SECTIONS)} sections from sections.json")
-except FileNotFoundError:
-    logger.warning("[BOOT] sections.json not found, using default sections")
-    SECTIONS = {
-        'atlas': {'id': 'atlas', 'title': 'ATLAS', 'html': '<h2>ATLAS - Facial Anatomy</h2><p>Complete guide to facial anatomy</p>'},
-        'figure': {'id': 'figure', 'title': 'V-Figure', 'html': '<h2>V-Figure Body Shape</h2><p>Body development guide</p>'},
-        'health': {'id': 'health', 'title': 'Health', 'html': '<h2>Health & Longevity</h2><p>Health and fitness guide</p>'},
-        'bonesmashing': {'id': 'bonesmashing', 'title': 'Bonesmashing', 'html': '<h2>Bonesmashing</h2><p>Technique guide</p>'},
-        'mew': {'id': 'mew', 'title': 'Mewing', 'html': '<h2>Mewing Posture</h2><p>Posture optimization guide</p>'},
-        'training': {'id': 'training', 'title': 'Training', 'html': '<h2>Training Guide</h2><p>Physical training guide</p>'}
-    }
+        SECTIONS = {s['id']: s for s in json.load(f)}
+        logger.info(f"[BOOT] Loaded {len(SECTIONS)} sections")
+except:
+    logger.warning("[BOOT] sections.json not found")
+    SECTIONS = {}
 
-def extract_text_from_html(html: str) -> str:
-    """Extract plain text from HTML content"""
+def extract_text(html: str) -> str:
     import re
-    text = re.sub('<[^<]+?>', '', html)
-    text = text.replace('&lt;', '<').replace('&gt;', '>')
-    text = text.replace('&amp;', '&').replace('&quot;', '"')
-    return text.strip()
+    return re.sub('<[^<]+?>', '', html).strip()
 
-def chunk_text(text: str, max_length: int = 3500) -> List[str]:
-    """Split text into chunks for Telegram"""
+def chunk_text(text: str, max_len: int = 3500) -> List[str]:
     chunks = []
-    while len(text) > max_length:
-        split_pos = text.rfind('\n', 0, max_length)
+    while len(text) > max_len:
+        split_pos = text.rfind('\n', 0, max_len)
         if split_pos == -1:
-            split_pos = max_length
+            split_pos = max_len
         chunks.append(text[:split_pos])
         text = text[split_pos:].lstrip()
     if text:
         chunks.append(text)
     return chunks
 
-# Initialize bot and dispatcher
 storage = MemoryStorage()
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=storage)
 
-def build_main_menu() -> InlineKeyboardMarkup:
-    """Build main menu keyboard"""
+def build_menu() -> InlineKeyboardMarkup:
     buttons = [
-        [InlineKeyboardButton(text="🏛️ ATLAS (Facial Anatomy)", callback_data="section_atlas")],
-        [InlineKeyboardButton(text="📐 V-Figure (Body Shape)", callback_data="section_figure")],
-        [InlineKeyboardButton(text="❤️ Health & Longevity", callback_data="section_health")],
+        [InlineKeyboardButton(text="🏛️ ATLAS", callback_data="section_atlas")],
+        [InlineKeyboardButton(text="📐 V-Figure", callback_data="section_figure")],
+        [InlineKeyboardButton(text="❤️ Health", callback_data="section_health")],
         [InlineKeyboardButton(text="💀 Bonesmashing", callback_data="section_bonesmashing")],
-        [InlineKeyboardButton(text="👄 Mewing (Posture)", callback_data="section_mew")],
-        [InlineKeyboardButton(text="💪 Physical Training", callback_data="section_training")],
+        [InlineKeyboardButton(text="👄 Mewing", callback_data="section_mew")],
+        [InlineKeyboardButton(text="💪 Training", callback_data="section_training")],
         [InlineKeyboardButton(text="❌ Close", callback_data="close_menu")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 @dp.message(CommandStart())
-async def command_start(message: types.Message):
-    """Handle /start command"""
+async def start(message: types.Message):
     logger.info(f"[USER] {message.from_user.id} started bot")
-    
-    welcome_text = (
-        "🎯 **Welcome to Looksmaxing Base Bot v2.0**\n\n"
-        "Your comprehensive guide to maxing out your looks and potential.\n\n"
-        "Select a section to learn:"
-    )
-    
     await message.answer(
-        welcome_text,
+        "🎯 **Looksmaxing Base Bot v2.0**\n\nYour guide to maxing out. Select a section:",
         parse_mode="Markdown",
-        reply_markup=build_main_menu()
+        reply_markup=build_menu()
     )
 
 @dp.callback_query(F.data.startswith("section_"))
 async def handle_section(callback: types.CallbackQuery):
-    """Handle section selection"""
     section_id = callback.data.replace("section_", "")
-    
     if section_id not in SECTIONS:
-        await callback.answer("Section not found", show_alert=True)
+        await callback.answer("Not found", show_alert=True)
         return
     
     section = SECTIONS[section_id]
-    text = extract_text_from_html(section.get('html', ''))
-    
+    text = extract_text(section.get('html', ''))
     if not text:
-        text = f"📖 {section['title']}\n\nContent for this section coming soon..."
+        text = f"📖 {section['title']}\n\nContent coming soon..."
     
     chunks = chunk_text(text)
-    
-    logger.info(f"[REQUEST] User {callback.from_user.id} requested section: {section_id} ({len(chunks)} chunks)")
+    logger.info(f"[USER] {callback.from_user.id} requested {section_id}")
     
     for i, chunk in enumerate(chunks):
         if i == len(chunks) - 1:
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="⬅️ Back to Menu", callback_data="back_menu")]
-            ])
-            await callback.message.answer(
-                chunk,
-                parse_mode="Markdown",
-                reply_markup=keyboard
-            )
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="back_menu")]])
+            await callback.message.answer(chunk, parse_mode="Markdown", reply_markup=keyboard)
         else:
             await callback.message.answer(chunk, parse_mode="Markdown")
         await asyncio.sleep(0.1)
@@ -140,75 +100,45 @@ async def handle_section(callback: types.CallbackQuery):
     await callback.answer()
 
 @dp.callback_query(F.data == "back_menu")
-async def handle_back_menu(callback: types.CallbackQuery):
-    """Handle back to menu button"""
-    logger.info(f"[USER] {callback.from_user.id} returned to menu")
-    
-    await callback.message.answer(
-        "🎯 **Looksmaxing Base Menu**\n\nSelect a section:",
-        parse_mode="Markdown",
-        reply_markup=build_main_menu()
-    )
+async def back_menu(callback: types.CallbackQuery):
+    logger.info(f"[USER] {callback.from_user.id} back to menu")
+    await callback.message.answer("🎯 **Menu**\n\nSelect:", parse_mode="Markdown", reply_markup=build_menu())
     await callback.answer()
 
 @dp.callback_query(F.data == "close_menu")
-async def handle_close_menu(callback: types.CallbackQuery):
-    """Handle close menu button"""
-    logger.info(f"[USER] {callback.from_user.id} closed menu")
+async def close_menu(callback: types.CallbackQuery):
+    logger.info(f"[USER] {callback.from_user.id} closed")
     await callback.message.delete()
     await callback.answer()
 
 @dp.message()
-async def handle_unknown(message: types.Message):
-    """Handle unknown messages"""
-    logger.info(f"[REQUEST] Unknown message from {message.from_user.id}: {message.text}")
-    
-    await message.answer(
-        "👋 I don't understand that command.\n\n"
-        "Use /start to see the menu.",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_menu")]
-        ])
-    )
+async def unknown(message: types.Message):
+    logger.info(f"[MSG] {message.from_user.id}: {message.text}")
+    await message.answer("👋 Use /start", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 Menu", callback_data="back_menu")]]))
 
-# HTTP health check handler
 async def health_check(request):
-    """Simple health check endpoint for Render"""
     return web.Response(text="Looksmaxing Base Bot is running!")
 
-async def start_http_server():
-    """Start HTTP server for Render health checks"""
+async def start_http():
     app = web.Application()
     app.router.add_get('/', health_check)
-    
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 10000)
     await site.start()
-    logger.info("[HTTP] Web server started on port 10000")
+    logger.info("[HTTP] Server on port 10000")
     return runner
 
 async def main():
-    """Main function - run bot and HTTP server"""
-    logger.info(f"[BOT] Starting bot with token: {BOT_TOKEN[:10]}...")
-    
+    logger.info(f"[BOT] Starting with token: {BOT_TOKEN[:10]}...")
     try:
-        # Start HTTP server
-        http_runner = await start_http_server()
-        
-        # Set bot commands
-        commands = [
-            types.BotCommand(command="start", description="Start the bot"),
-            types.BotCommand(command="help", description="Show help"),
-        ]
-        await bot.set_my_commands(commands)
-        
-        logger.info("[BOT] Bot started successfully! Waiting for messages...")
-        
-        # Start polling
+        http_runner = await start_http()
+        logger.info("[BOT] Polling started")
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     except Exception as e:
         logger.error(f"[ERROR] {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":
